@@ -16,4 +16,4 @@ server:
 EOF
 
 echo "Starting server"
-/usr/local/bin/run-app server --config=./config.yaml
+cd /data && /usr/local/bin/run-app server --config=/config.yaml
