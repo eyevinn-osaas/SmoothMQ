@@ -10,6 +10,7 @@ server:
   sqs:
     enabled: true
     port: ${SQS_PORT:-3001}
+    endpoint-override: https://sqs.us-east-1.amazonaws.com
     keys:
       - accesskey: ${ACCESS_KEY_ID:-smoothmq}
         secretkey: ${SECRET_ACCESS_KEY:-smoothmq}
