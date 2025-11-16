@@ -9,11 +9,28 @@ cat >./config.yaml <<EOF
 server:
   sqs:
     enabled: true
-    port: ${PORT:-8080}
+    port: ${SQS_PORT:-3001}
     keys:
       - access_key: ${ACCESS_KEY_ID:-smoothmq}
         secret_key: ${SECRET_ACCESS_KEY:-smoothmq}
+  
+  dashboard:
+    enabled: true
+    port: ${DASHBOARD_PORT:-3000}
+  
+  prometheus:
+    enabled: true
+    port: ${PROMETHEUS_PORT:-2112}
+
+  sqlite:
+    path: smoothmq.sqlite
 EOF
+
+echo "Configuring nginx port"
+sed -i "s/PORT_PLACEHOLDER/${PORT:-80}/g" /etc/nginx/nginx.conf
+
+echo "Starting nginx"
+nginx
 
 echo "Starting server"
 cd /data && /usr/local/bin/run-app server --config=/config.yaml
