@@ -11,6 +11,4 @@ RUN go build -v -o /run-app .
 FROM debian:bookworm
 
 COPY --from=builder /run-app /usr/local/bin/
-COPY --from=builder /usr/src/app/entrypoint.sh /usr/local/bin/
-VOLUME ["/data"]
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["run-app", "server"]
