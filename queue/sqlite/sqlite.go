@@ -663,6 +663,38 @@ func (q *SQLiteQueue) Delete(tenantId int64, queueName string, messageId int64) 
 	return err
 }
 
+func (q *SQLiteQueue) DeleteBatch(tenantId int64, queueName string, messageIds []int64) error {
+	if len(messageIds) == 0 {
+		return nil
+	}
+
+	queue, err := q.getQueue(tenantId, queueName)
+	if err != nil {
+		return err
+	}
+
+	q.Mu.Lock()
+	defer q.Mu.Unlock()
+
+	err = q.DBG.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("tenant_id = ? AND queue_id = ? AND message_id IN ?", tenantId, queue.ID, messageIds).Delete(&KV{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("tenant_id = ? AND queue_id = ? AND id IN ?", tenantId, queue.ID, messageIds).Delete(&Message{}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err == nil {
+		log.Debug().Interface("message_ids", messageIds).Msg("Deleted messages in batch")
+	}
+
+	return err
+}
+
 func (q *SQLiteQueue) Shutdown() error {
 	db, err := q.DBG.DB()
 	if err != nil {
