@@ -175,6 +175,8 @@ func (s *SQS) Action(c *fiber.Ctx) error {
 		rc = s.ReceiveMessage(c, tenantId)
 	case "AmazonSQS.DeleteMessage":
 		rc = s.DeleteMessage(c, tenantId)
+	case "AmazonSQS.DeleteMessageBatch":
+		rc = s.DeleteMessageBatch(c, tenantId)
 	case "AmazonSQS.ListQueues":
 		rc = s.ListQueues(c, tenantId)
 	case "AmazonSQS.GetQueueUrl":
@@ -594,6 +596,49 @@ func (s *SQS) DeleteMessage(c *fiber.Ctx, tenantId int64) error {
 	}
 
 	return nil
+}
+
+func (s *SQS) DeleteMessageBatch(c *fiber.Ctx, tenantId int64) error {
+	batchReq := &DeleteMessageBatchRequest{}
+
+	err := json.Unmarshal(c.Body(), batchReq)
+	if err != nil {
+		return err
+	}
+
+	tokens := strings.Split(batchReq.QueueUrl, "/")
+	queue := tokens[len(tokens)-1]
+
+	response := &DeleteMessageBatchResponse{}
+
+	for _, req := range batchReq.Entries {
+		messageId, err := strconv.ParseInt(req.ReceiptHandle, 10, 64)
+		if err != nil {
+			response.Failed = append(response.Failed, BatchResultErrorEntry{
+				ID:          req.ID,
+				SenderFault: true,
+				Code:        "InvalidParameterValue",
+				Message:     "Invalid ReceiptHandle",
+			})
+			continue
+		}
+
+		err = s.queue.Delete(tenantId, queue, messageId)
+		if err != nil {
+			response.Failed = append(response.Failed, BatchResultErrorEntry{
+				ID:          req.ID,
+				SenderFault: false,
+				Code:        "InternalFailure",
+				Message:     err.Error(),
+			})
+		} else {
+			response.Successful = append(response.Successful, DeleteMessageBatchResultEntry{
+				ID: req.ID,
+			})
+		}
+	}
+
+	return c.JSON(response)
 }
 
 func (s *SQS) ChangeMessageVisibility(c *fiber.Ctx, tenantId int64) error {
