@@ -611,6 +611,10 @@ func (s *SQS) DeleteMessageBatch(c *fiber.Ctx, tenantId int64) error {
 
 	response := &DeleteMessageBatchResponse{}
 
+	// First pass: validate receipt handles and collect valid message IDs
+	validEntries := make([]DeleteMessageBatchRequestEntry, 0, len(batchReq.Entries))
+	messageIds := make([]int64, 0, len(batchReq.Entries))
+
 	for _, req := range batchReq.Entries {
 		messageId, err := strconv.ParseInt(req.ReceiptHandle, 10, 64)
 		if err != nil {
@@ -622,19 +626,30 @@ func (s *SQS) DeleteMessageBatch(c *fiber.Ctx, tenantId int64) error {
 			})
 			continue
 		}
+		validEntries = append(validEntries, req)
+		messageIds = append(messageIds, messageId)
+	}
 
-		err = s.queue.Delete(tenantId, queue, messageId)
+	// Batch delete all valid messages at once
+	if len(messageIds) > 0 {
+		err = s.queue.DeleteBatch(tenantId, queue, messageIds)
 		if err != nil {
-			response.Failed = append(response.Failed, BatchResultErrorEntry{
-				ID:          req.ID,
-				SenderFault: false,
-				Code:        "InternalFailure",
-				Message:     err.Error(),
-			})
+			// If batch delete fails, mark all as failed
+			for _, req := range validEntries {
+				response.Failed = append(response.Failed, BatchResultErrorEntry{
+					ID:          req.ID,
+					SenderFault: false,
+					Code:        "InternalFailure",
+					Message:     err.Error(),
+				})
+			}
 		} else {
-			response.Successful = append(response.Successful, DeleteMessageBatchResultEntry{
-				ID: req.ID,
-			})
+			// All succeeded
+			for _, req := range validEntries {
+				response.Successful = append(response.Successful, DeleteMessageBatchResultEntry{
+					ID: req.ID,
+				})
+			}
 		}
 	}
 
